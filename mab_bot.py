@@ -41,12 +41,14 @@ async def on_message(message):
 						hentai_dados = capta_hentai(url)
 						posicao_rank = (chave.replace('Hentai ', ''))
 						generos = ' '.join(f'`{gênero}`' for gênero in hentai_dados['generos'])
-						embed = discord.Embed(description=f"# {hentai_dados['titulo']} - TOP {posicao_rank}\n-# {hentai_dados['sinopse']}\n\n{generos}", colour=0x00b0f4)
+						episodios = len(hentai_dados['episodios'])
+						embed = discord.Embed(description=f"# {hentai_dados['titulo']} - TOP {posicao_rank}\n-# {hentai_dados['sinopse']}\n\n**Episódios:** ``{episodios}``\n\n{generos}", colour=0x00b0f4)
 
 						embed.set_author(name="MAB", icon_url="https://media.discordapp.net/attachments/1531116319204970496/1552767814056546324/image.png?ex=6ab6cf37&is=6ab57db7&hm=80400d3a363cc8537d8fbcf552ac94ce2dc7eb3cf0f5da762a5c1d677ca512d0&=&format=webp&quality=lossless")
 						embed.set_image(url=hentai_dados['poster'])
 						embed.set_footer(text=hentai_dados['data'])
 						await ranque.send(embed=embed)
+					break
 				await a.edit(content=f"**✅ O {ranque.mention} foi atualizado com sucesso!**")
 				return
 			except ValueError:
