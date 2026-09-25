@@ -1,58 +1,149 @@
 #ADICIONE O TOKEN DENTRO DE sessao.txt
 token = open('sessao.txt', 'r').read()
-
-
-#SERVER
-ranking = 1550582459509252216
-
 import discord
+from discord.ext import commands
 import json
+import re
 
-#LIBS MADE BY ME
+#configs canais
+instagram = 1552828499448963133
+ranking_ch = 1550582459509252216
+
+#MINHAS LIBS
+from insta.insta import puxa_insta, faz_frame
 from hentai.motorhentai import gera_rank,  capta_hentai
 
+#DEFS
+def extrai_user_insta(texto):
+	texto = texto.strip()
+	padrao = r'(?:https?://(?:www\.)?instagram\.com/|@)([a-zA-Z0-9_\.]+)'
+	correspondencia = re.match(padrao, texto)
+	if correspondencia:
+		return correspondencia.group(1)
+	return None
+
+#BOT
 intents = discord.Intents.default()
 intents.message_content = True
-
+bot = commands.Bot(command_prefix="!", intents=intents)
 client = discord.Client(intents=intents)
 
-@client.event
+
+@bot.event
 async def on_ready():
-	print(f'Logado como > {client.user}')
+	print(f'Logado como > {bot.user}')
 
-@client.event
-async def on_message(message):
-	if message.author == client.user:
+#RANKING HENTAIS
+@bot.command()
+async def ranking(ctx, link=None):
+	if link is None:
+		cmds = {'comandos':[
+			{'comando': 'atualizahentai', 'explica': 'Atualiza o TOP de hentais no canal configurado'}
+		]}
+		comanditos = []
+		for cmd in cmds['comandos']:
+			comanditos.append(f'``!ranking {cmd["comando"]}`` {cmd["explica"]}')
+		comandos_rnkg = '\n'.join(comanditos)
+
+		await ctx.send(f'**Ei {ctx.author.display_name}, esses são os comandos disponíveis:**\n\n{comandos_rnkg}')
 		return
-	#RANKING HENTAIS!
-	if message.content.startswith('!ranking'):
-		if not message.author.guild_permissions.administrator:
-			await message.channel.send(f'**Você por acaso é admin? {message.author.display_name}**')
+	
+	if 'atualizahentai' in link:
+		if not ctx.message.author.guild_permissions.administrator:
+			await ctx.send(f'**Você por acaso é admin? {ctx.author.display_name}**')
 			return
-		if 'atualiza' in message.content:
-			ranque = await client.fetch_channel(ranking)
-			a = await message.channel.send(f'*Ei **{message.author.display_name}** espera só um pouquinho que eu já atualizo os rankings em* {ranque.mention}, *ok ?*')
-			try:
-				mensagens_apagadas = await ranque.purge(limit=None)
-				rank = gera_rank()
-				for hentai in rank['rank']:
-					for chave, info in hentai.items():
-						url = (hentai[chave]['url'])
-						hentai_dados = capta_hentai(url)
-						posicao_rank = (chave.replace('Hentai ', ''))
-						generos = ' '.join(f'`{gênero}`' for gênero in hentai_dados['generos'])
-						episodios = len(hentai_dados['episodios'])
-						embed = discord.Embed(description=f"# {hentai_dados['titulo']} - TOP {posicao_rank}\n-# {hentai_dados['sinopse']}\n\n**Episódios:** ``{episodios}``\n\n{generos}", colour=0x00b0f4)
+		msg1 = await ctx.send(f"*Só um minutinho {ctx.author.display_name} ..*")
+		ranque = await ctx.bot.fetch_channel(ranking_ch)
+		await msg1.edit(content=f"**Estou limpando o canal {ranque.mention}...**")
+		mensagens_apagadas = await ranque.purge(limit=None)
+		rank = gera_rank()
+		for hentai in rank['rank']:
+			for chave, info in hentai.items():
+				url = (hentai[chave]['url'])
+				hentai_dados = capta_hentai(url)
+				posicao_rank = (chave.replace('Hentai ', ''))
+				generos = ' '.join(f'`{gênero}`' for gênero in hentai_dados['generos'])
+				episodios = len(hentai_dados['episodios'])
+				embed = discord.Embed(description=f"# {hentai_dados['titulo']} - TOP {posicao_rank}\n-# {hentai_dados['sinopse']}\n\n**Episódios:** ``{episodios}``\n\n{generos}", colour=0x00b0f4)
 
-						embed.set_author(name="MAB", icon_url="https://media.discordapp.net/attachments/1531116319204970496/1552767814056546324/image.png?ex=6ab6cf37&is=6ab57db7&hm=80400d3a363cc8537d8fbcf552ac94ce2dc7eb3cf0f5da762a5c1d677ca512d0&=&format=webp&quality=lossless")
-						embed.set_image(url=hentai_dados['poster'])
-						embed.set_footer(text=hentai_dados['data'])
-						await ranque.send(embed=embed)
-					break
-				await a.edit(content=f"**✅ O {ranque.mention} foi atualizado com sucesso!**")
-				return
-			except ValueError:
-				print (f'ERRO []')
+				embed.set_author(name="MAB", icon_url="https://media.discordapp.net/attachments/1531116319204970496/1552767814056546324/image.png?ex=6ab6cf37&is=6ab57db7&hm=80400d3a363cc8537d8fbcf552ac94ce2dc7eb3cf0f5da762a5c1d677ca512d0&=&format=webp&quality=lossless")
+				embed.set_image(url=hentai_dados['poster'])
+				embed.set_footer(text=hentai_dados['data'])
+				await ranque.send(embed=embed)
+		await msg1.edit(content=f"**✅ O {ranque.mention} foi atualizado com sucesso!**")
+		return
+
+
+#INSTA-CL
+@bot.command()
+async def clinsta(ctx, link=None):
+	if not ctx.message.author.guild_permissions.administrator:
+		await ctx.send(f'**Você por acaso é admin? {ctx.author.display_name}**')
+		return
+	insta_ch = await ctx.bot.fetch_channel(instagram)
+	emoji_sim = "👍"
+	emoji_nao = "👎"
+	msg1 = await ctx.send(f"*Ei {ctx.author.display_name}, você realmente quer limpar o {insta_ch.mention}?*")
+	await msg1.add_reaction(emoji_sim)
+	await msg1.add_reaction(emoji_nao)
+	def check(reaction, user):
+		return (
+			reaction.message.id == msg1.id
+			and not user.bot 
+			and user.guild_permissions.administrator 
+			and str(reaction.emoji) in [emoji_sim, emoji_nao]
+		)
+	reaction, user = await ctx.bot.wait_for('reaction_add', timeout=60.0, check=check)
+	if str(reaction.emoji) == emoji_sim:
+		await msg1.edit(content=f"**🧹Aguarde estou limpando {insta_ch.mention} ...**")
+		await insta_ch.purge(limit=None)
+		await msg1.edit(content=f"**🧹 O {insta_ch.mention} foi limpo com sucesso!**")
+		return
+	else:
+		await msg1.edit(content=f"**OPERAÇÃO CANCELADA**")
+	return
+		
+
+#INSTA
+@bot.command()
+async def insta(ctx, link):
+	insta_user = extrai_user_insta(link)
+	if insta_user:
+		mensagem1 = await ctx.send(f"*Só um minutinho {ctx.author.display_name} ..*")
+		try:
+			insta_dados = puxa_insta(insta_user)
+		except:
+			await ctx.send(f"**ERRO***")
 			return
+		insta_ch = await ctx.bot.fetch_channel(instagram)
+		x = faz_frame(insta_dados['foto'], insta_user)
+		embed = discord.Embed()
+		embed.set_author(name="MAB", icon_url="https://media.discordapp.net/attachments/1531116319204970496/1552767814056546324/image.png?ex=6ab6cf37&is=6ab57db7&hm=80400d3a363cc8537d8fbcf552ac94ce2dc7eb3cf0f5da762a5c1d677ca512d0&=&format=webp&quality=lossless")
+		foto_local = discord.File("resultado.png", filename="foto_perfil.jpg")			
+		embed = discord.Embed()
+		embed = discord.Embed(title=f"🍥 Ei, senpai!", url=f"https://instagram.com/{insta_user}", description=f"\n## \n*Que tal dar uma espiadinha nesse perfil? 👀✨*ㅤㅤㅤㅤㅤㅤㅤ\n \n**✨ Nome:** ``\"{insta_dados['nome']}\"``\n**🌙 Bio:** ``\"{insta_dados['biografia']}\"``\n**👥 Seguidores** ``{insta_dados['seguidores']} almas``\n### [🌸 Seguir](https://instagram.com/{insta_user})")
+		embed.set_image(url="attachment://foto_perfil.jpg")
+		await insta_ch.send(embed=embed, file=foto_local)
+		await mensagem1.edit(content=f"**Acabei de postar no {insta_ch.mention}!**")
+		return
+	else:
+		await ctx.send(f"**Ei {ctx.author.display_name}, você inseriu de forma inválida!!**\n### Exemplos:\n- ``!insta @username``\n- ``!insta https://instagram.com/username``")
+		return
 
-client.run(token)
+@bot.command()
+async def ajuda(ctx):
+	dados = json.loads(open('comandos.json', 'r').read())
+	mensagem = []
+	for comandor in dados['comandos']:
+		for chave, info in comandor.items():
+			if info['subcomandos'] and isinstance(info['subcomandos'], list):
+				for sub_dict in info['subcomandos']:
+					nome_sub = list(sub_dict.keys())[0]
+				mensagem.append(f'``!{chave} {nome_sub}`` {sub_dict[nome_sub]}')
+			else:
+				mensagem.append(f'``!{chave}`` {info["help"]}')
+	await ctx.send(f"### Meus comandos:\n{'\n'.join(mensagem)}")
+	return
+
+
+bot.run(token)
