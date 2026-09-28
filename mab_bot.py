@@ -2,12 +2,15 @@
 token = open('sessao.txt', 'r').read()
 import discord
 from discord.ext import commands
+from bs4 import BeautifulSoup
 import json
 import re
+import requests
 
 #configs canais
 instagram = 1552828499448963133
 ranking_ch = 1550582459509252216
+noticias_manga = 1553445800850235504
 
 #MINHAS LIBS
 from insta.insta import puxa_insta, faz_frame
@@ -22,16 +25,71 @@ def extrai_user_insta(texto):
 		return correspondencia.group(1)
 	return None
 
+
+
+
 #BOT
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 client = discord.Client(intents=intents)
 
+class BotaoLink(discord.ui.View):
+    def __init__(self, url_noticia):
+        super().__init__()
+        self.add_item(discord.ui.Button(
+            label="Ler Matéria Completa", 
+            style=discord.ButtonStyle.link,
+            url=url_noticia,
+            emoji="📰"
+        ))
+
 
 @bot.event
 async def on_ready():
 	print(f'Logado como > {bot.user}')
+
+
+#POST
+@bot.command()
+async def postar(ctx, link):
+	if not ctx.message.author.guild_permissions.administrator:
+		await ctx.send(f'**Você por acaso é admin? {ctx.author.display_name}**')
+		return	
+	if not link:
+		await ctx.send("❌ **Por favor, forneça o link da notícia! Ex: `!blogbbm https://site.com`**")
+		return
+	msg1 = await ctx.send(f"*Acessando o link e preparando o jornal, só um minutinho...*")
+	manga = await ctx.bot.fetch_channel(noticias_manga)
+	try:
+		headers = {'User-Agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)'}
+		resposta = requests.get(link, headers=headers)
+		soup = BeautifulSoup(resposta.text, 'html.parser')
+		if resposta.status_code != 200:
+			print (resposta.text)
+			await msg1.edit(content="❌ Não consegui acessar o site. Verifique o link.")
+			return
+		titulo = soup.find("meta", property="og:title")["content"] if soup.find("meta", property="og:title") else "Sem Título"
+		banner = soup.find("meta", property="og:image")["content"] if soup.find("meta", property="og:image") else ""
+		og_desc = soup.find("meta", property="og:description")["content"] if soup.find("meta", property="og:description") else ""
+		tag_thumb = soup.find("meta", property="og:image:secure_url")	
+		autor = soup.find("meta", attrs={"name": "author"})["content"] if soup.find("meta", attrs={"name": "author"}) else False
+		print (f'olha, tem autor! {autor}')
+		conteudo_embed = f"# {titulo}\n\n{og_desc}"
+		embed = discord.Embed(title='', description=conteudo_embed)
+		embed.set_image(url=banner)  
+		if autor:
+			embed.set_footer(text=f"Escrito por: {autor}\n\nClique abaixo para abrir a matéria 👇")
+		if tag_thumb:
+			embed.set_thumbnail(url=tag_thumb)
+		embed.set_author(name="MAB - JORNAL", icon_url="https://media.discordapp.net/attachments/1531116319204970496/1552767814056546324/image.png?ex=6ab6cf37&is=6ab57db7&hm=80400d3a363cc8537d8fbcf552ac94ce2dc7eb3cf0f5da762a5c1d677ca512d0&=&format=webp&quality=lossless")    
+		 
+		view_link = BotaoLink(url_noticia=link)
+		await manga.send(embed=embed, view=view_link)
+		await msg1.delete()
+	except Exception as e:
+		print(f"Erro ao processar URL: {e}")
+		await msg1.edit(content="❌ Ocorreu um erro ao extrair as informações da URL.")
 
 #RANKING HENTAIS
 @bot.command()
@@ -72,6 +130,36 @@ async def ranking(ctx, link=None):
 				await ranque.send(embed=embed)
 		await msg1.edit(content=f"**✅ O {ranque.mention} foi atualizado com sucesso!**")
 		return
+
+#NOTICIAS-CL
+@bot.command()
+async def clnoticias(ctx, link=None):
+	if not ctx.message.author.guild_permissions.administrator:
+		await ctx.send(f'**Você por acaso é admin? {ctx.author.display_name}**')
+		return
+	insta_ch = await ctx.bot.fetch_channel(noticias_manga)
+	emoji_sim = "👍"
+	emoji_nao = "👎"
+	msg1 = await ctx.send(f"*Ei {ctx.author.display_name}, você realmente quer limpar o {insta_ch.mention}?*")
+	await msg1.add_reaction(emoji_sim)
+	await msg1.add_reaction(emoji_nao)
+	def check(reaction, user):
+		return (
+			reaction.message.id == msg1.id
+			and not user.bot 
+			and user.guild_permissions.administrator 
+			and str(reaction.emoji) in [emoji_sim, emoji_nao]
+		)
+	reaction, user = await ctx.bot.wait_for('reaction_add', timeout=60.0, check=check)
+	if str(reaction.emoji) == emoji_sim:
+		await msg1.edit(content=f"**🧹Aguarde estou limpando {insta_ch.mention} ...**")
+		await insta_ch.purge(limit=None)
+		await msg1.edit(content=f"**🧹 O {insta_ch.mention} foi limpo com sucesso!**")
+		return
+	else:
+		await msg1.edit(content=f"**OPERAÇÃO CANCELADA**")
+	return
+
 
 
 #INSTA-CL
